@@ -1,10 +1,11 @@
 # Load packages
-library(readr)
-library(dplyr)
-library(magrittr)
 library(tximport)
 library(DESeq2)
-library(ggplot2)
+library(plotly)
+library(tidyverse)
+library(biomaRt)
+library(pheatmap)
+library(RColorBrewer)
 
 ## NOT data.frame BUT tibble
 sample_table = read_csv("SraRunTable.txt") %>% 
@@ -129,4 +130,132 @@ dds_nhbe = nbinomWaldTest(dds_nhbe)
 # dds_nhbe = DESeq(dds_nhbe)
 result_table = results(dds_nhbe)
 summary(result_table)
-View(result_table)
+View(as.data.frame(result_table))
+
+# result_table is a DataFrame not a data.frame!
+result_df = as.data.frame(result_table)
+View(result_df)
+
+plotCounts(dds_nhbe, gene='ENSG00000265794',
+           intgroup='conditions')
+sum(complete.cases(result_df))
+
+filter_df1 = result_df[complete.cases(result_df),]
+View(filter_df1)
+
+# Filter results 
+# padj < 0.05
+# log2FoldChange > 1 < -1
+
+filter_df1$padj < 0.05
+
+filter_df2 = filter_df1[filter_df1$padj < 0.05,]
+
+abs(filter_df2$log2FoldChange) > 1
+
+filter_df3 = filter_df2[abs(filter_df2$log2FoldChange) > 1,]
+
+View(filter_df3)
+
+plotMA(result_table)
+
+# volcano plot
+
+filter_df1$test = filter_df1$padj < 0.05 & abs(filter_df1$log2FoldChange) > 1
+
+filter_df1 = rownames_to_column(filter_df1, var='ensgene')
+
+g = ggplot(filter_df1, aes(x=log2FoldChange, 
+                           y=-log10(padj), 
+                           name=ensgene)) +
+  geom_point(aes(colour=test), size=1, alpha=0.3) +
+  scale_colour_manual(values=c('black', 'red')) +
+  geom_vline(xintercept=1, colour='green', linetype=3) +
+  geom_vline(xintercept=-1, colour='green', linetype=3) +
+  geom_hline(yintercept=-log10(0.05), colour='blue', linetype=3) +
+  theme_bw() +
+  theme(legend.position = 'none')
+
+ggplotly(g)
+
+listMarts()
+ensembl99 = useEnsembl(biomart="ensembl", version=99)
+View(listDatasets(ensembl99))
+ensembl99 = useDataset("hsapiens_gene_ensembl", 
+                       mart=ensembl99)
+View(listAttributes(ensembl99))
+View(listFilters(ensembl99))
+getBM(attributes=c('ensembl_gene_id', 'ensembl_gene_id_version',
+                   'ensembl_transcript_id', 'ensembl_transcript_id_version',
+                   'external_gene_name'), 
+      filters = c('ensembl_gene_id'), 
+      values = filter_df1$ensgene[1:6],
+      mart = ensembl99)
+
+annotation = getBM(attributes=c('ensembl_gene_id',
+                                'chromosome_name',
+                                'start_position',
+                                'end_position',
+                                'strand',
+                                'gene_biotype',
+                                'external_gene_name',
+                                'description'),
+                   filters = c('ensembl_gene_id'),
+                   values = filter_df1$ensgene,
+                   mart = ensembl99)
+View(annotation)
+View(filter_df1)
+annotated_df = left_join(filter_df1, annotation,
+                         by=c('ensgene'='ensembl_gene_id'))
+View(annotated_df)
+
+g = ggplot(annotated_df, aes(x=log2FoldChange, 
+                           y=-log10(padj), 
+                           name=external_gene_name)) +
+  geom_point(aes(colour=test), size=1, alpha=0.3) +
+  scale_colour_manual(values=c('black', 'red')) +
+  geom_vline(xintercept=1, colour='green', linetype=3) +
+  geom_vline(xintercept=-1, colour='green', linetype=3) +
+  geom_hline(yintercept=-log10(0.05), colour='blue', linetype=3) +
+  theme_bw() +
+  theme(legend.position = 'none')
+
+ggplotly(g)
+
+anno_df2 = annotated_df[annotated_df$padj < 0.05,]
+
+anno_df3 = anno_df2[abs(anno_df2$log2FoldChange) > 1,]
+
+degs = anno_df3$ensgene
+
+vst_nhbe = varianceStabilizingTransformation(dds_nhbe)
+vst_nhbe_mat = assay(vst_nhbe)
+
+data_for_hm = vst_nhbe_mat[degs,]
+rownames(data_for_hm) = anno_df3$external_gene_name
+
+heatmap(data_for_hm)
+
+pheatmap(data_for_hm, fontsize_row=4, scale='row')
+
+greys = colorRampPalette(brewer.pal(9, "Greys"))(100)
+
+pheatmap(data_for_hm, fontsize_row=4, scale='row',
+         color=greys)
+
+pairs = colorRampPalette(brewer.pal(12, "Paired"))(100)
+
+pheatmap(data_for_hm, fontsize_row=4, scale='row',
+         color=pairs)
+
+last_scheme = colorRampPalette(brewer.pal(7, "Blues"))(100)
+
+pheatmap(data_for_hm, fontsize_row=4, scale='row',
+         color=last_scheme, cutree_cols = 2,
+         cutree_rows = 2)
+
+
+
+
+
+
