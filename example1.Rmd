@@ -1,0 +1,64 @@
+---
+title: "RMarkdown Example"
+author: "Simon Cockell"
+date: "22/05/2020"
+output: html_document
+---
+
+```{r load_packages, warning=FALSE, include=FALSE}
+library(viridis)
+library(readr)
+library(knitr)
+```
+
+# Heading 1
+
+This is a paragraph of text. Markdown lets us format the text in **bold**, *italics*, as `code` and [links](https://youtube.com).
+
+ * This
+ * is
+ * a
+ * bulleted
+ * list
+
+Some more text here.
+
+ 1. This
+ 1. is 
+ 1. a 
+ 1. numbered
+ 1. list
+ 
+Final example: some maths $E = mc^{2}$
+
+```{r figure1, include=TRUE}
+image(volcano, col=viridis(200))
+```
+
+# Figure 2
+
+Here is an alternative colour scheme.
+
+```{r figure2, fig.cap="Figure 2 - Magma colour scheme", fig.height=10, cache=TRUE}
+image(volcano, col=viridis(200, option="A"))
+```
+
+## Heading level 2
+
+### Heading level 3
+
+Here is a table example.
+
+```{r table1}
+dat = read_tsv('../covid-rnaseq/filtered_nhbe_results.txt')
+kable(dat)
+```
+
+```{bash bash_eg}
+ls -l -h .
+```
+
+```{python python_eg}
+x = "Hello world"
+print(x)
+```
